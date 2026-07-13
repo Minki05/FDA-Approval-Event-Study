@@ -1,0 +1,18 @@
+company,ticker,drug_name,event_date,announcement_time,decision_type,event_direction,market_reaction_date,market_cap_group
+"Minerva Neurosciences, Inc",NERV,,2024-02-26,pre_market,CRL,NEGATIVE,2024-02-27,small
+"Abeona Therapeutics, Inc.",ABEO,,2024-04-16,after_hours,CRL,NEGATIVE,2024-04-22,small
+"Rocket Pharmaceuticals, Inc.",RCKT,,2024-06-14,pre_market,CRL,NEGATIVE,2024-06-28,mid
+"Zealand Pharma US, Inc.",ZEAL,,2024-10-08,after_hours,CRL,NEGATIVE,2024-10-08,mid
+"Applied Therapeutics, Inc.",APLT,,2024-11-27,after_hours,CRL,NEGATIVE,2024-11-27,small
+"Lexicon Pharmaceuticals, Inc.",LXRX,,2024-12-20,after_hours,CRL,NEGATIVE,2024-12-20,small
+"Atara Biotherapeutics, Inc.",ATRA,,2025-01-15,pre_market,CRL,NEGATIVE,2025-01-16,small
+"Milestone Pharmaceuticals USA, Inc.",MIST,,2025-03-27,pre_market,CRL,NEGATIVE,2025-03-28,small
+"Aldeyra Therapeutics, Inc.",ALDX,,2025-04-02,pre_market,CRL,NEGATIVE,2025-04-03,small
+Unicycive Therapeutics Inc.,UNCY,,2025-06-27,pre_market,CRL,NEGATIVE,2025-06-30,small
+Ultragenyx Pharmaceutical Inc.,RARE,,2025-07-07,after_hours,CRL,NEGATIVE,2025-07-14,mid
+"Capricor, Inc.",CAPR,,2025-07-09,pre_market,CRL,NEGATIVE,2025-07-11,mid
+"Replimune, Inc.",REPL,,2025-07-21,pre_market,CRL,NEGATIVE,2025-07-22,small
+"PTC Therapeutics, Inc.",PTCT,,2025-08-18,pre_market,CRL,NEGATIVE,2025-08-19,mid
+"Outlook Therapeutics, Inc.",OTLK,,2025-08-27,pre_market,CRL,NEGATIVE,2025-08-28,small
+"Scholar Rock, Inc.",SRRK,,2025-09-22,pre_market,CRL,NEGATIVE,2025-09-23,mid
+"Biohaven Therapeutics, Ltd.",BHVN,,2025-11-04,after_hours,CRL,NEGATIVE,2025-11-05,mid

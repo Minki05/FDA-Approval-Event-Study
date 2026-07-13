@@ -1,0 +1,5 @@
+ticker,company,event_date,market_reaction_date,reason
+VRNA,Verona Pharma,2024-06-26,2024-06-27,no price data from yfinance
+DAWN,Day One Biopharmaceuticals,2024-04-23,2024-04-23,no price data from yfinance
+ZEAL,"Zealand Pharma US, Inc.",2024-10-08,2024-10-08,no price data from yfinance
+APLT,"Applied Therapeutics, Inc.",2024-11-27,2024-11-27,no price data from yfinance

@@ -1,0 +1,24 @@
+ticker,company,drug_name,event_date,announcement_time,decision_type,event_direction,market_reaction_date,event_trading_day,market_cap_group,pre_raw_return,pre_abn_return_spy,pre_abn_return_xbi,announcement_raw_return,announcement_abn_return_spy,announcement_abn_return_xbi,post_raw_return,post_abn_return_spy,post_abn_return_xbi
+GERN,Geron,Rytelo (imetelstat),2024-06-06,after_hours,APPROVAL,POSITIVE,2024-06-07,2024-06-07,small,9.27,3.08,-3.62,29.56,29.38,30.46,-8.33,-12.05,-16.92
+MDGL,Madrigal Pharmaceuticals,Rezdiffra (resmetirom),2024-03-14,after_hours,APPROVAL,POSITIVE,2024-03-15,2024-03-15,mid,9.6,4.34,3.44,16.28,16.38,17.87,-29.01,-28.46,-21.01
+XFOR,X4 Pharmaceuticals,Xolremdi (mavorixafor),2024-04-26,pre_market,APPROVAL,POSITIVE,2024-04-29,2024-04-29,small,25.54,25.85,37.39,-3.86,-2.63,-5.22,-6.25,-13.22,-15.51
+IONS,Ionis Pharmaceuticals,Tryngolza (olezarsen),2024-12-19,after_hours,APPROVAL,POSITIVE,2024-12-20,2024-12-20,mid,-7.46,-5.87,5.35,1.38,-0.43,-0.94,-9.56,-11.52,-11.17
+BBIO,BridgeBio Pharma,Attruby (acoramidis),2024-11-22,after_hours,APPROVAL,POSITIVE,2024-11-25,2024-11-25,mid,-9.15,-11.07,-6.3,12.89,12.03,10.18,9.98,13.02,19.5
+CRNX,Crinetics Pharmaceuticals,Palsonify (paltusotine),2025-09-25,after_hours,APPROVAL,POSITIVE,2025-09-26,2025-09-26,small,20.88,18.57,13.83,21.23,20.38,17.54,-8.07,-9.17,-17.68
+CYTK,Cytokinetics,Myqorzo (aficamten),2025-12-19,after_hours,APPROVAL,POSITIVE,2025-12-22,2025-12-22,mid,4.26,2.52,-9.02,0.91,-0.17,-0.61,-4.82,-3.32,-1.48
+INSM,Insmed,Brinsupri (brensocatib),2025-08-12,pre_market,APPROVAL,POSITIVE,2025-08-12,2025-08-12,mid,12.17,9.25,9.48,8.84,7.43,3.72,14.76,11.96,5.88
+NERV,"Minerva Neurosciences, Inc",,2024-02-26,pre_market,CRL,NEGATIVE,2024-02-27,2024-02-27,small,-8.72,-14.87,-16.38,-58.38,-58.44,-62.69,-12.72,-14.59,-1.32
+ABEO,"Abeona Therapeutics, Inc.",,2024-04-16,after_hours,CRL,NEGATIVE,2024-04-22,2024-04-22,small,-5.02,-2.08,11.27,-54.95,-57.07,-57.2,26.98,22.48,19.33
+RCKT,"Rocket Pharmaceuticals, Inc.",,2024-06-14,pre_market,CRL,NEGATIVE,2024-06-28,2024-06-28,mid,-9.43,-12.89,-9.82,-3.59,-3.4,-3.79,-8.28,-6.06,-11.25
+LXRX,"Lexicon Pharmaceuticals, Inc.",,2024-12-20,after_hours,CRL,NEGATIVE,2024-12-21,2024-12-23,small,-44.09,-43.25,-31.71,7.04,5.33,6.27,-6.58,-6.49,-5.77
+ATRA,"Atara Biotherapeutics, Inc.",,2025-01-15,pre_market,CRL,NEGATIVE,2025-01-16,2025-01-16,small,0.15,1.62,10.98,-50.08,-50.89,-49.42,6.54,8.86,9.24
+MIST,"Milestone Pharmaceuticals USA, Inc.",,2025-03-27,pre_market,CRL,NEGATIVE,2025-03-28,2025-03-28,small,-1.75,4.97,4.02,-64.44,-63.09,-59.26,50.0,45.78,52.03
+ALDX,"Aldeyra Therapeutics, Inc.",,2025-04-02,pre_market,CRL,NEGATIVE,2025-04-03,2025-04-03,small,-20.76,-13.52,-7.68,-64.51,-54.01,-55.91,14.29,-3.31,7.01
+UNCY,Unicycive Therapeutics Inc.,,2025-06-27,pre_market,CRL,NEGATIVE,2025-06-30,2025-06-30,small,23.41,18.96,16.4,-27.94,-28.39,-28.03,-13.27,-17.32,-17.89
+RARE,Ultragenyx Pharmaceutical Inc.,,2025-07-07,after_hours,CRL,NEGATIVE,2025-07-11,2025-07-11,mid,-9.65,-16.45,-21.86,-5.82,-5.65,-5.69,1.88,-1.4,-1.12
+CAPR,"Capricor, Inc.",,2025-07-09,pre_market,CRL,NEGATIVE,2025-07-11,2025-07-11,mid,7.04,0.25,-5.17,-35.18,-35.01,-35.05,-3.92,-7.21,-6.93
+REPL,"Replimune, Inc.",,2025-07-21,pre_market,CRL,NEGATIVE,2025-07-22,2025-07-22,small,18.74,13.48,16.82,-72.94,-73.81,-75.68,76.76,75.26,70.61
+PTCT,"PTC Therapeutics, Inc.",,2025-08-18,pre_market,CRL,NEGATIVE,2025-08-19,2025-08-19,mid,4.51,0.81,-1.98,-1.91,-1.1,-0.81,26.94,21.89,13.27
+OTLK,"Outlook Therapeutics, Inc.",,2025-08-27,pre_market,CRL,NEGATIVE,2025-08-28,2025-08-28,small,2.81,-0.15,0.35,-64.17,-63.92,-63.68,41.01,39.49,24.13
+SRRK,"Scholar Rock, Inc.",,2025-09-22,pre_market,CRL,NEGATIVE,2025-09-23,2025-09-23,mid,3.56,-1.59,-10.73,3.5,4.36,3.36,-16.81,-18.95,-27.69
+BHVN,"Biohaven Therapeutics, Ltd.",,2025-11-04,after_hours,CRL,NEGATIVE,2025-11-05,2025-11-05,mid,1.53,-0.61,-9.35,-38.85,-38.12,-40.01,30.48,29.56,20.67
