@@ -5,12 +5,5 @@ migrate_schema.py
 fetch_crl_candidates.py
 check_xfor.py
 fda_events.py
-events_candidatecat >> .gitignore << 'EOF'
-archive/
-merge.py
-migrate_schema.py
-fetch_crl_candidates.py
-check_xfor.py
-fda_events.py
 events_candidate_raw.csv
 crl_candidates_raw.csv
