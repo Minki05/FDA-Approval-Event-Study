@@ -1,0 +1,14 @@
+ticker,decision_type,event_date,why_missing
+VRNA,APPROVAL,2024-06-26,acquired (no yfinance history)
+DAWN,APPROVAL,2024-04-23,acquired (no yfinance history)
+CRNX,APPROVAL,2025-09-25,yfinance returns only 2026-07 onward for this ticker
+ITRM,APPROVAL,2024-10-25,no yfinance history
+KALV,APPROVAL,2025-07-03,no yfinance history
+AVDL,APPROVAL,2023-05-01,acquired (no yfinance history)
+APLT,CRL,2024-11-27,no yfinance history
+YMAB,CRL (not in sample),2022-12-01,"acquired 2025, no yfinance history"
+GRTX,CRL (not in sample),2023-08-10,"delisted from Nasdaq, no yfinance history"
+CKPT,CRL (not in sample),2023-12-18,acquired by Sun Pharma 2025
+RETA,CRL (not in sample),2022-02-25,acquired by Biogen 2023
+ACER,CRL (not in sample),2022-06,acquired by Zevra 2023
+ICPT,CRL (not in sample),2023-06-22,acquired by Alfasigma 2023
