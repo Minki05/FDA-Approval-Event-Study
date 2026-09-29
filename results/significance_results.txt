@@ -1,0 +1,53 @@
+====================================================================================================
+FDA event study - significance tests (announcement window t-1 -> t+1)
+Sample: 52 approvals + 33 CRLs = 85
+====================================================================================================
+
+[1] Mean abnormal return by decision type (vs XBI, main)
+  APPROVAL                       n=52 | mean   +7.94% | median   +1.53% | t=+2.56 p=0.0134 | Wilcoxon p=0.0396 | 95% CI [+2.14, +14.03] | positive 58%
+  CRL                            n=33 | mean  -23.60% | median  -14.12% | t=-4.17 p=0.0002 | Wilcoxon p=0.0002 | 95% CI [-34.57, -12.90] | positive 21%
+
+[1b] Robustness: vs SPY
+  APPROVAL (vs SPY)              n=52 | mean   +7.90% | median   +2.67% | t=+2.52 p=0.0150 | Wilcoxon p=0.0432 | 95% CI [+1.95, +14.00] | positive 54%
+  CRL (vs SPY)                   n=33 | mean  -23.51% | median  -14.64% | t=-4.09 p=0.0003 | Wilcoxon p=0.0003 | 95% CI [-34.60, -12.28] | positive 24%
+
+[2] Asymmetry: approval vs CRL
+  APPROVAL (n=52, +7.94%) vs CRL (n=33, -23.60%) | diff +31.54pp | Welch p=0.0000 | Mann-Whitney p=0.0000
+  |CRL mean| / approval mean = 3.0x
+
+[3] Sub-periods (approvals): 2022-23 vs 2024-26
+  APPROVAL 2022-23               n=23 | mean  +12.98% | median  +14.60% | t=+2.71 p=0.0128 | Wilcoxon p=0.0233 | 95% CI [+4.37, +22.60] | positive 65%
+  APPROVAL 2024-26               n=29 | mean   +3.95% | median   +1.11% | t=+0.99 p=0.3296 | Wilcoxon p=0.5793 | 95% CI [-3.24, +12.00] | positive 52%
+  2022-23 (n=23, +12.98%) vs 2024-26 (n=29, +3.95%) | diff +9.03pp | Welch p=0.1536 | Mann-Whitney p=0.1217
+
+[4] Sensitivity
+  Contaminated events: MDGL(A), PHAT(A), LXRX(A), VRCA(A), CHRS(A), CRMD(A), LENZ(A), ARDX(A), DERM(A), AXSM(C), CYTK(C)
+  APPROVAL - clean only          n=43 | mean   +8.72% | median   +1.13% | t=+2.44 p=0.0189 | Wilcoxon p=0.0520 | 95% CI [+2.32, +16.01] | positive 58%
+  CRL - clean only               n=31 | mean  -25.14% | median  -16.40% | t=-4.26 p=0.0002 | Wilcoxon p=0.0001 | 95% CI [-36.42, -13.49] | positive 19%
+  APPROVAL - novel drugs only    n=37 | mean   +5.66% | median   +1.13% | t=+1.99 p=0.0541 | Wilcoxon p=0.0913 | 95% CI [+0.33, +11.37] | positive 59%
+  CRL - novel drugs only         n=22 | mean  -24.74% | median  -14.13% | t=-3.67 p=0.0014 | Wilcoxon p=0.0011 | 95% CI [-37.65, -11.72] | positive 18%
+  CRL - CDER only                n=26 | mean  -20.56% | median  -10.76% | t=-3.12 p=0.0045 | Wilcoxon p=0.0047 | 95% CI [-33.57, -8.05] | positive 27%
+  CRL CDER (n=26, -20.56%) vs CBER (n=7, -34.87%) | diff +14.31pp | Welch p=0.2668 | Mann-Whitney p=0.2877
+  APPROVAL novel (n=37, +5.66%) vs CRL novel (n=22, -24.74%) | diff +30.41pp | Welch p=0.0003 | Mann-Whitney p=0.0001
+  APPROVAL - trim max & min      n=50 | mean   +7.34% | median   +1.53% | t=+2.66 p=0.0105 | Wilcoxon p=0.0321 | 95% CI [+2.18, +12.98] | positive 58%
+  CRL - trim max & min           n=31 | mean  -23.66% | median  -14.12% | t=-4.44 p=0.0001 | Wilcoxon p=0.0001 | 95% CI [-33.93, -13.50] | positive 19%
+
+[5] Market cap group
+  APPROVAL small                 n=35 | mean   +8.94% | median   +1.00% | t=+2.02 p=0.0515 | Wilcoxon p=0.1788 | 95% CI [+0.61, +17.70] | positive 54%
+  APPROVAL mid                   n=17 | mean   +5.89% | median   +4.39% | t=+2.14 p=0.0479 | Wilcoxon p=0.0505 | 95% CI [+0.71, +11.14] | positive 65%
+  APPROVAL small (n=35, +8.94%) vs mid (n=17, +5.89%) | diff +3.05pp | Welch p=0.5612 | Mann-Whitney p=0.7848
+  CRL small                      n=25 | mean  -26.95% | median  -28.03% | t=-3.98 p=0.0005 | Wilcoxon p=0.0006 | 95% CI [-40.11, -13.87] | positive 20%
+  CRL mid                        n= 8 | mean  -13.12% | median   -7.35% | t=-1.36 p=0.2156 | Wilcoxon p=0.1953 | 95% CI [-31.45, +3.25] | positive 25%
+  CRL small (n=25, -26.95%) vs mid (n=8, -13.12%) | diff -13.83pp | Welch p=0.2592 | Mann-Whitney p=0.3100
+
+[6] Pre window (t-30 -> t-1): moved before the news?
+  APPROVAL pre                   n=52 | mean   +5.95% | median   +2.81% | t=+1.82 p=0.0742 | Wilcoxon p=0.1173 | 95% CI [-0.20, +12.40] | positive 56%
+  CRL pre                        n=33 | mean   -1.88% | median   -6.06% | t=-0.23 p=0.8174 | Wilcoxon p=0.0737 | 95% CI [-14.36, +15.72] | positive 33%
+
+[7] Post window (t+1 -> t+30): drift or reversal?
+  APPROVAL post                  n=52 | mean   -1.19% | median   -4.94% | t=-0.28 p=0.7770 | Wilcoxon p=0.3165 | 95% CI [-9.05, +7.27] | positive 40%
+  CRL post                       n=33 | mean   +4.26% | median   +2.95% | t=+1.12 p=0.2723 | Wilcoxon p=0.5483 | 95% CI [-2.92, +12.01] | positive 55%
+  CRL announcement vs post reaction: Spearman rho=-0.52 p=0.0017  (negative = reversal)
+
+Note: small samples and very different volatility across events, so read the t-test together
+      with Wilcoxon and the bootstrap CI. Many subgroups are tested, so don't over-read one p < 0.05.

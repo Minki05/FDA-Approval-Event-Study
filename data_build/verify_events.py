@@ -1,21 +1,34 @@
 """
-verify_events.py — events_verified.csv 자동 검증
+data_build/verify_events.py
 
-이벤트마다 자동으로 확인:
-  [시각]  SEC 8-K/6-K 접수 시각 -> 정보가 늦어도 언제 공개됐는지 -> 기록된 반응일과 비교
-  [시총]  t-1 당시 실제 주가(분할 되돌림) x XBRL 발행주식수 -> small/mid/large
-  [태그]  openFDA 신청 유형 -> novelty(NME/non-NME/novel_biologic), center(CDER/CBER)
-  [오염]  반응 구간(t-1~t+1)의 다른 공시: 실적(2.02), 계약/차입(1.01/2.03), 증자(424B*, S-3 등)
-  [해외]  20-F/6-K 제출사 -> 해외 기업 플래그 (본주 상장지는 사람이 최종 판단)
+Step 2: automatically check every hand-entered event in events_verified.csv.
 
-결과:
-  verification_report.csv  이벤트별 자동 검증 결과 + 플래그
-  events_enriched.csv      events_verified + 자동 태그 (원본은 건드리지 않음)
+Why
+    I entered dates, times and tags by hand from press releases. Hand entry makes
+    mistakes, so I wanted an independent automatic check against SEC filings instead
+    of trusting myself. This script actually caught real errors (for example reaction
+    days that were later than the company's filing).
 
-USAGE:
-  1) sec_utils.py 맨 위 SEC_USER_AGENT에 이메일 입력
-  2) python3 verify_events.py
-  상장폐지 종목 CIK를 못 찾으면 아래 CIK_OVERRIDES에 적고 다시 실행 (캐시 덕분에 빠름)
+What it checks for each event
+    timing    8-K / 6-K acceptance time -> the latest possible time the news was public.
+              If my recorded reaction day is after that, flag TIMING_LATE.
+              EDGAR timestamps are calibrated against known press-release times first.
+    size      market cap at t-1 (split-adjusted price x XBRL shares) -> small/mid/large
+    tags      openFDA application -> novelty (NME / non-NME / novel_biologic) and
+              review center (CDER / CBER). CRL drugs that were never approved are not in
+              openFDA, so those are tagged by hand in MANUAL_NOVELTY / MANUAL_CENTER
+              (with the drug name next to each one as the reason).
+    contamination   other price-moving filings in the window t-1 to t+1: earnings
+              (8-K 2.02), financing (1.01 / 2.03), stock offerings (424B*, S-3)
+    foreign   20-F / 6-K filers -> flag, final call made by hand
+
+Output
+    verification_report.csv   one row per event with the checks and flags
+    events_enriched.csv       events + automatic tags (events_verified.csv is not changed)
+    Only flagged events needed a manual look.
+
+Run (originally from the repo root, after setting SEC_USER_AGENT in sec_utils.py)
+    python3 data_build/verify_events.py
 """
 
 import os
@@ -32,29 +45,26 @@ APPROVAL_RAW = "approval_candidates_raw.csv"
 CRL_RAW = "crl_candidates_raw.csv"
 
 CIK_OVERRIDES = {
-    # "VRNA": 1657312,   # 예시 형식. 자동으로 못 찾은 것만 채우면 됨
 }
 
-# 미승인 CRL 약은 openFDA에 기록이 없어 자동 판정 불가 -> 수동 (근거: 공시/라벨)
 MANUAL_NOVELTY = {
     ("NERV", "CRL"): "NME",             # roluperidone
     ("ABEO", "CRL"): "novel_biologic",  # pz-cel (gene therapy)
     ("RCKT", "CRL"): "novel_biologic",  # Kresladi (gene therapy)
-    ("ZEAL", "CRL"): "non-NME",         # dasiglucagon, 2021년 Zegalogue로 이미 승인 (새 적응증)
+    ("ZEAL", "CRL"): "non-NME",         # dasiglucagon, already approved in 2021 as Zegalogue (new indication)
     ("APLT", "CRL"): "NME",             # govorestat
-    ("LXRX", "CRL"): "non-NME",         # sotagliflozin, 2023년 Inpefa로 이미 승인
+    ("LXRX", "CRL"): "non-NME",         # sotagliflozin, already approved in 2023 as Inpefa
     ("ATRA", "CRL"): "novel_biologic",  # tab-cel (cell therapy)
     ("MIST", "CRL"): "NME",             # etripamil
-    ("ALDX", "CRL"): "non-NME",         # ADX-2191 methotrexate (2023 CRL로 교체)
-    ("UNCY", "CRL"): "non-NME",         # oxylanthanum carbonate, lanthanum 기존 성분
+    ("ALDX", "CRL"): "non-NME",         # ADX-2191 methotrexate (replaced by the 2023 CRL)
+    ("UNCY", "CRL"): "non-NME",         # oxylanthanum carbonate, lanthanum already approved
     ("RARE", "CRL"): "novel_biologic",  # UX111 (gene therapy)
     ("CAPR", "CRL"): "novel_biologic",  # deramiocel (cell therapy)
     ("REPL", "CRL"): "novel_biologic",  # RP1 (oncolytic virus)
     ("PTCT", "CRL"): "NME",             # vatiquinone
-    ("OTLK", "CRL"): "non-NME",         # bevacizumab 안과 제형
+    ("OTLK", "CRL"): "non-NME",         # bevacizumab, ophthalmic formulation
     ("SRRK", "CRL"): "novel_biologic",  # apitegromab
     ("BHVN", "CRL"): "NME",             # troriluzole
-    # --- 2024-26 CRL (EDGAR 전문검색)
     ("CORT", "CRL"): "NME",
     ("AQST", "CRL"): "NME",
     ("RGNX", "CRL"): "novel_biologic",
@@ -62,7 +72,6 @@ MANUAL_NOVELTY = {
     ("GRCE", "CRL"): "non-NME",
     ("CING", "CRL"): "non-NME",
     ("ACHV", "CRL"): "NME",
-    # --- 2022-23 CRL (EDGAR 전문검색)
     ("AKBA", "CRL"): "NME",
     ("CHRS", "CRL"): "novel_biologic",
     ("AXSM", "CRL"): "non-NME",
@@ -76,12 +85,11 @@ MANUAL_NOVELTY = {
     ("SPRY", "CRL"): "non-NME",
 }
 
-# 2022-23 CRL은 FDA CRL DB(2024~)에 없어 신청번호가 없음 -> center 수동 지정
 MANUAL_CENTER = {(t, "CRL"): "CDER" for t in ['AKBA', 'CHRS', 'AXSM', 'VRCA', 'SPRO', 'SUPN', 'CYTK', 'ASND', 'IBRX', 'ALDX', 'CTXR', 'OTLK', 'SPRY']}
 MANUAL_CENTER.update({("CORT", "CRL"): "CDER", ("AQST", "CRL"): "CDER", ("RGNX", "CRL"): "CBER", ("IRON", "CRL"): "CDER", ("GRCE", "CRL"): "CDER", ("CING", "CRL"): "CDER", ("ACHV", "CRL"): "CDER"})
 
 EVENT_FORMS = {"8-K", "6-K"}
-EVENT_ITEMS = ("7.01", "8.01")        # 보도자료성 8-K만 (주총 결과 5.07 같은 무관 공시 제외)
+EVENT_ITEMS = ("7.01", "8.01")
 OFFERING_FORMS = ("424B", "S-3", "S-1", "F-3", "F-1", "SC TO")
 CONFOUND_ITEMS = {"2.02": "EARNINGS", "1.01": "AGREEMENT", "2.03": "DEBT",
                   "3.02": "EQUITY_SALE", "5.02": "EXEC_CHANGE", "2.01": "ACQUISITION"}
@@ -92,7 +100,6 @@ def first_token(s):
     return t[0] if t else ""
 
 
-# ------------------------------------------------------------- application no.
 def load_raw():
     a = pd.read_csv(APPROVAL_RAW) if os.path.exists(APPROVAL_RAW) else pd.DataFrame()
     c = pd.read_csv(CRL_RAW) if os.path.exists(CRL_RAW) else pd.DataFrame()
@@ -123,7 +130,6 @@ def find_appno(row, a, c):
     return "", ""
 
 
-# ------------------------------------------------------------- timezone calib
 PR_TIME_RE = re.compile(r"(\d{1,2}):(\d{2})\s*(AM|PM)", re.I)
 PR_DATE_RE = re.compile(r"(20\d\d-\d\d-\d\d)")
 
@@ -141,7 +147,6 @@ def pr_datetime_from_note(row):
 
 
 def calibrate_tz(rows):
-    """보도자료 시각이 적힌 이벤트: (8-K 접수시각 원값 - 보도자료 시각). 중앙값 3~6시간이면 UTC."""
     diffs = []
     for pr_dt, raw_acc in rows:
         if pr_dt and raw_acc:
@@ -149,20 +154,18 @@ def calibrate_tz(rows):
             if -2 <= dh <= 12:
                 diffs.append(dh)
     if len(diffs) < 3:
-        print(f"[시간대 보정] 비교 가능한 이벤트 {len(diffs)}개 -> 기본값 ET 사용")
+        print(f"[timezone calibration] only {len(diffs)} comparable events -> default to ET")
         return "ET"
     med = statistics.median(diffs)
     mode = "UTC" if 3.0 <= med <= 6.5 else "ET"
-    print(f"[시간대 보정] 8-K 접수 - 보도자료 시각 중앙값 {med:+.2f}h (n={len(diffs)}) -> EDGAR 시각을 {mode}로 해석")
+    print(f"[timezone calibration] median 8-K acceptance minus press release time {med:+.2f}h (n={len(diffs)}) -> read EDGAR times as {mode}")
     return mode
 
 
-# ------------------------------------------------------------- main
 def main():
     v = pd.read_csv(VERIFIED)
     a_raw, c_raw = load_raw()
 
-    # 1차: CIK + 공시 목록
     info = {}
     for i, r in v.iterrows():
         tk = str(r["ticker"]).upper()
@@ -175,7 +178,6 @@ def main():
         base, subs = (su.submissions(cik) if cik else (None, pd.DataFrame()))
         info[i] = dict(cik=cik, cik_how=how, base=base, subs=subs)
 
-    # 시간대 보정용: 원값(보정 전) 접수 시각
     calib = []
     for i, r in v.iterrows():
         subs = info[i]["subs"]
@@ -202,7 +204,6 @@ def main():
         if not cik:
             flags.append("NO_CIK")
 
-        # ---- 시각
         if not subs.empty:
             w = subs[subs.form.isin(EVENT_FORMS) & (subs.filingDate >= ed) &
                      (subs.filingDate <= ed + timedelta(days=10))].copy()
@@ -217,20 +218,19 @@ def main():
                            implied_latest_reaction=implied.date() if implied is not None else "")
                 if implied is not None and rec_react is not None:
                     if rec_react > implied:
-                        flags.append("TIMING_LATE")      # 기록된 반응일이 공시보다 늦음 -> 날짜 오류 가능성 큼
-                        rep["timing_check"] = f"ERROR: 늦어도 {implied.date()}에 공개됨"
+                        flags.append("TIMING_LATE")
+                        rep["timing_check"] = f"ERROR: public by {implied.date()} at the latest"
                     elif rec_react == implied:
                         rep["timing_check"] = "OK"
                         if su.session_label(f0.acc) != str(r.get("announcement_time", "")) and \
                                 su.session_label(f0.acc) in ("pre_market", "after_hours"):
-                            rep["timing_check"] = f"OK (세션 표기 {r.get('announcement_time')} vs 공시 {su.session_label(f0.acc)})"
+                            rep["timing_check"] = f"OK (recorded session {r.get('announcement_time')} vs filing {su.session_label(f0.acc)})"
                     else:
-                        rep["timing_check"] = "INFO: 8-K가 반응일 이후 접수 (보도자료가 먼저) — 메모의 PR 시각으로 확인"
+                        rep["timing_check"] = "INFO: 8-K filed after the reaction day (press release came first) - checked with PR time in notes"
             else:
                 flags.append("NO_EVENT_FILING")
-                rep["timing_check"] = "8-K/6-K 없음 — 보도자료로 수동 확인"
+                rep["timing_check"] = "no 8-K/6-K - checked manually from press release"
 
-            # ---- 오염: 반응 구간 [t-1, t+1]
             if rec_react is not None:
                 lo, hi = su.shift_tday(rec_react, -1), su.shift_tday(rec_react, 1)
                 ww = subs[(subs.filingDate >= lo) & (subs.filingDate <= hi)]
@@ -250,13 +250,11 @@ def main():
                 if hits:
                     flags.append("CONFOUND?")
 
-            # ---- 해외
             fpi, country = su.is_foreign_filer(subs, base)
             rep.update(foreign_filer=fpi, business_country=country)
             if fpi:
                 flags.append("FOREIGN_FILER")
 
-        # ---- 시총 (t-1)
         if rec_react is not None and cik:
             t1 = su.shift_tday(rec_react, -1)
             px = su.raw_close(tk, t1)
@@ -274,18 +272,16 @@ def main():
             if grp == "large":
                 flags.append("LARGE_CAP_EXCLUDE?")
 
-        # ---- 신청번호 / novelty / center
         appno, src = find_appno(r, a_raw, c_raw)
         recs = []
         for ap in (appno if isinstance(appno, list) else ([appno] if appno else [])):
             rr = su.drugsfda_app(ap)
             if rr:
                 recs.append(rr)
-        if not recs and dt_type == "APPROVAL":            # raw에서 못 찾으면 브랜드로 openFDA 직접 검색
+        if not recs and dt_type == "APPROVAL":
             bt = re.match(r"[A-Za-z0-9]+", str(r["drug_name"]))
             recs = su.drugsfda_by_brand(bt.group(0)) if bt else []
             src = "openfda_brand" if recs else src
-        # 같은 브랜드 여러 신청(정제/현탁액 등) -> 가장 먼저 승인된 원 신청
         recs.sort(key=lambda x: (su.orig_approval_date(x) or "99999999",
                                  0 if su.novelty_from_drugsfda(x)[0] in ("NME", "novel_biologic") else 1))
         rec = recs[0] if recs else None
@@ -324,14 +320,14 @@ def main():
         enr[k] = rep_df[k].values if k in rep_df else ""
     enr.to_csv("events_enriched.csv", index=False)
 
-    print("\n=== 플래그 요약 ===")
+    print("\n=== Flag summary ===")
     from collections import Counter
     cnt = Counter(f for fl in rep_df["flags"] for f in str(fl).split())
     for f, n in cnt.most_common():
         tks = rep_df[rep_df["flags"].str.contains(re.escape(f), na=False)]
         print(f"  {f:<22} {n:>2}  {', '.join(tks.ticker + '(' + tks.decision_type.str[0] + ')')}")
     print("\n-> verification_report.csv, events_enriched.csv")
-    print("   플래그 뜬 것만 사람이 확인하면 됨. 원본 events_verified.csv는 안 바뀜.")
+    print("   Only flagged events need a manual check. events_verified.csv is not modified.")
 
 
 if __name__ == "__main__":

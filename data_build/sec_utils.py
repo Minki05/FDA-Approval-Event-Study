@@ -1,8 +1,25 @@
 """
-sec_utils.py — 검증 자동화 공용 함수 (SEC EDGAR / openFDA / yfinance)
+data_build/sec_utils.py
 
-- 모든 요청은 .cache/ 에 저장 -> 두 번째 실행부터 빠르고, SEC 요청 제한도 안전
-- SEC 규칙: User-Agent에 이름+이메일 필수, 초당 10회 이하
+Shared helpers for the data-building scripts (SEC EDGAR, openFDA, yfinance).
+
+What is in here
+    - get_json / get_text      HTTP requests with a disk cache in .cache/, retries,
+                               and SEC rate limiting (SEC requires a User-Agent with
+                               name + email and at most 10 requests per second)
+    - ticker / CIK lookup      SEC ticker map, fuzzy company-name matching, lookup of
+                               delisted companies by name
+    - filings                  company submissions, 8-K acceptance times, foreign-filer
+                               check (20-F / 6-K), EDGAR full-text search
+    - trading calendar         next trading day, shifting by n trading days, turning a
+                               filing time into a reaction day (after 4pm -> next day)
+    - market cap at t-1        split-adjusted close x shares outstanding from XBRL,
+                               then small (< $2B) / mid (< $10B) / large
+    - openFDA tags             application lookup, novelty (NME / non-NME / novel
+                               biologic), review center (CDER vs CBER)
+
+Setup
+    Set SEC_USER_AGENT (environment variable or the constant below) to "Name email".
 """
 
 import json
@@ -15,13 +32,11 @@ from datetime import datetime, timedelta, date
 import pandas as pd
 import requests
 
-# ↓↓↓ 여기 이메일만 네 걸로 바꿔 ↓↓↓
 SEC_USER_AGENT = os.environ.get("SEC_USER_AGENT", "Minki Kim your_email@example.com")
-# ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
 
 CACHE_DIR = ".cache"
-SMALL_MAX = 2_000_000_000     # map_tickers.py와 동일: < $2B small
-MID_MAX = 10_000_000_000      # < $10B mid, 이상 large
+SMALL_MAX = 2_000_000_000
+MID_MAX = 10_000_000_000
 OPEN_T = (9, 30)
 CLOSE_T = (16, 0)
 
@@ -29,13 +44,11 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 _last_call = {"sec": 0.0, "fda": 0.0}
 
 
-# ---------------------------------------------------------------- HTTP + cache
 def _cache_path(url):
     return os.path.join(CACHE_DIR, hashlib.md5(url.encode()).hexdigest() + ".json")
 
 
 def get_json(url, kind="sec", retries=4):
-    """kind: 'sec' (0.12s 간격, UA 필수) | 'fda' (0.3s 간격). 404면 None."""
     p = _cache_path(url)
     if os.path.exists(p):
         with open(p) as f:
@@ -56,17 +69,16 @@ def get_json(url, kind="sec", retries=4):
             time.sleep(2 * (attempt + 1))
             continue
         if r.status_code == 403 and kind == "sec":
-            raise SystemExit("SEC 403: sec_utils.py의 SEC_USER_AGENT에 이메일을 넣었는지 확인")
+            raise SystemExit("SEC 403: put your name and email in SEC_USER_AGENT in sec_utils.py")
         r.raise_for_status()
         data = r.json()
         with open(p, "w") as f:
             json.dump(data, f)
         return data
-    raise RuntimeError(f"요청 실패: {url}")
+    raise RuntimeError(f"Request failed: {url}")
 
 
 def get_text(url, retries=4):
-    """SEC 문서 원문(html/txt) -> 태그 제거한 텍스트. 캐시."""
     p = _cache_path(url).replace(".json", ".txt")
     if os.path.exists(p):
         with open(p) as f:
@@ -92,7 +104,6 @@ def get_text(url, retries=4):
     return ""
 
 
-# ---------------------------------------------------------------- names / CIK
 SUFFIXES = {"inc", "incorporated", "corp", "corporation", "co", "company", "ltd", "limited", "llc",
             "plc", "sa", "ag", "nv", "na", "lp", "holdings", "holding", "group", "the",
             "pharmaceuticals", "pharmaceutical", "pharma", "pharms", "pharm", "therapeutics",
@@ -111,7 +122,6 @@ _ticker_map = None
 
 
 def ticker_map():
-    """{TICKER: (cik, title)} — SEC 현재 상장 목록(상장폐지 종목은 없음)."""
     global _ticker_map
     if _ticker_map is None:
         d = get_json("https://www.sec.gov/files/company_tickers.json")
@@ -128,7 +138,6 @@ def cik_for_ticker(ticker, overrides=None):
 
 
 def fuzzy_cik(name, min_ratio=0.86):
-    """회사명 -> (cik, ticker, title, score). 현재 상장사만."""
     from difflib import SequenceMatcher
     target = norm_name(name)
     if not target:
@@ -146,9 +155,7 @@ def fuzzy_cik(name, min_ratio=0.86):
     return best if best and best[3] >= min_ratio else None
 
 
-# ---------------------------------------------------------------- submissions
 def submissions(cik):
-    """회사 전체 공시 목록 DataFrame (recent + 과거 페이지 합침)."""
     base = get_json(f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json")
     if base is None:
         return None, pd.DataFrame()
@@ -173,14 +180,10 @@ def is_foreign_filer(sub_df, base):
     return fpi, country
 
 
-# ---------------------------------------------------------------- time zone
-# EDGAR acceptanceDateTime 끝에 'Z'가 붙어 있지만 실제로는 동부시간(ET)인 경우가 많음.
-# verify_events.py가 보도자료 시각이 적힌 이벤트들로 자동 보정해서 "ET" 또는 "UTC"로 정함.
 ACCEPT_TZ = "ET"
 
 
 def parse_acceptance(s):
-    """EDGAR acceptanceDateTime -> naive ET datetime."""
     if not isinstance(s, str) or not s:
         return None
     dt = datetime.strptime(s[:19], "%Y-%m-%dT%H:%M:%S")
@@ -190,9 +193,7 @@ def parse_acceptance(s):
     return dt
 
 
-# ---------------------------------------------------------------- EDGAR full-text search
 def fts_search(query, startdt, enddt, forms="8-K", max_hits=2000):
-    """EDGAR 전문검색(2001~). -> list of dict(_id, _source). 100개씩 페이지."""
     from urllib.parse import quote
     out, frm = [], 0
     while frm < max_hits:
@@ -201,7 +202,7 @@ def fts_search(query, startdt, enddt, forms="8-K", max_hits=2000):
         try:
             d = get_json(url)
         except Exception as e:
-            print(f"  [전문검색 실패] {e} -> 이 검색은 건너뜀")
+            print(f"  [full-text search failed] {e} -> skipping this search")
             break
         hits = (d or {}).get("hits", {}).get("hits", [])
         if not hits:
@@ -215,7 +216,6 @@ def fts_search(query, startdt, enddt, forms="8-K", max_hits=2000):
 
 
 def parse_display_name(dn):
-    """'RIGEL PHARMACEUTICALS INC  (RIGL)  (CIK 0001034842)' -> (name, ticker, cik)"""
     cik = re.search(r"CIK\s*0*(\d+)", dn)
     tks = re.findall(r"\(([A-Z.\-, ]{1,20})\)", dn)
     tk = tks[0].split(",")[0].strip() if tks else ""
@@ -224,7 +224,6 @@ def parse_display_name(dn):
 
 
 def find_cik_by_name(company, around_date, days=400):
-    """상장폐지 종목용: 전문검색으로 회사명 -> CIK."""
     from difflib import SequenceMatcher
     core = norm_name(company)
     if not core:
@@ -242,7 +241,6 @@ def find_cik_by_name(company, around_date, days=400):
     return best if best and best[2] >= 0.8 else None
 
 
-# ---------------------------------------------------------------- trading days
 _tdays = None
 
 
@@ -263,14 +261,13 @@ def next_trading_day_on_or_after(d):
 
 
 def reaction_day_from_time(dt):
-    """공시 시각(ET) -> 시장이 처음 반응할 수 있는 거래일."""
     if dt is None:
         return None
     d = pd.Timestamp(dt.date())
     td = trading_days()
     is_tday = d in td
     if is_tday and (dt.hour, dt.minute) < CLOSE_T:
-        return d                       # 장 전 또는 장중 -> 당일
+        return d
     return next_trading_day_on_or_after(d + timedelta(days=1))
 
 
@@ -294,9 +291,7 @@ def shift_tday(d, n):
     return td[j] if 0 <= j < len(td) else None
 
 
-# ---------------------------------------------------------------- market cap
 def shares_outstanding_asof(cik, asof, max_age_days=400):
-    """XBRL 공시 발행주식수 중 asof 이전 가장 최근 값. (shares, end_date, tag)"""
     facts = get_json(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{int(cik):010d}.json")
     if not facts:
         return None, None, None
@@ -318,7 +313,7 @@ def shares_outstanding_asof(cik, asof, max_age_days=400):
                 if end <= asof and (asof - end).days <= max_age_days:
                     cands.append((end, r["val"], f"{ns}:{tag}"))
         if cands:
-            break   # 우선순위 높은 태그에서 찾았으면 거기서 끝
+            break
     if not cands:
         return None, None, None
     end, val, tag = max(cands, key=lambda x: x[0])
@@ -326,7 +321,6 @@ def shares_outstanding_asof(cik, asof, max_age_days=400):
 
 
 def raw_close(ticker, d):
-    """d 거래일 종가를 '당시 실제 가격'으로 (yfinance는 분할 조정돼 있어서 되돌림)."""
     import yfinance as yf
     t = yf.Ticker(ticker)
     d = pd.Timestamp(d)
@@ -359,13 +353,11 @@ def cap_group(mcap):
     return "small" if mcap < SMALL_MAX else ("mid" if mcap < MID_MAX else "large")
 
 
-# ---------------------------------------------------------------- openFDA
 def drugsfda_app(appno):
-    """'NDA 218038' / 'NDA218038' -> openFDA 레코드 (없으면 None: 미승인 또는 CBER)."""
     a = re.sub(r"\s+", "", str(appno)).upper()
     if not a or a == "NAN":
         return None
-    a = re.sub(r"^BL(?=\d)", "BLA", a)          # CRL DB의 'BL 125807'(CBER 표기) -> BLA125807
+    a = re.sub(r"^BL(?=\d)", "BLA", a)
     d = get_json(f'https://api.fda.gov/drug/drugsfda.json?search=application_number:"{a}"&limit=1', kind="fda")
     if not d or not d.get("results"):
         return None
@@ -373,7 +365,6 @@ def drugsfda_app(appno):
 
 
 def novelty_from_drugsfda(rec):
-    """-> (novelty, class_code_desc). novelty: NME / novel_biologic / non-NME / unknown"""
     if rec is None:
         return "unknown", ""
     subs = rec.get("submissions", [])
@@ -396,7 +387,7 @@ def novelty_from_drugsfda(rec):
 def center_guess(appno, in_drugsfda):
     a = re.sub(r"\s+", "", str(appno)).upper()
     if re.match(r"^BL\d", a):
-        return "CBER"                                # FDA CRL DB는 CBER 제품을 'BL'로 표기
+        return "CBER"
     if a.startswith("NDA"):
         return "CDER"
     if a.startswith("BLA"):
@@ -407,9 +398,7 @@ def center_guess(appno, in_drugsfda):
     return ""
 
 
-# ---------------------------------------------------------------- v2 추가: 브랜드 검색 / 기존 성분 확인
 def drugsfda_by_brand(brand):
-    """브랜드명 -> openFDA 레코드 목록 (신청번호를 raw에서 못 찾을 때)."""
     b = re.sub(r"[^A-Za-z0-9 ]", "", str(brand)).upper().strip()
     if not b:
         return []
@@ -425,8 +414,6 @@ def orig_approval_date(rec):
 
 
 def ingredient_previously_approved(rec):
-    """같은 성분(바이오 접미사 -xxxx 제거)이 더 먼저 승인된 다른 신청이 있으면 True.
-    예: bevacizumab-vikg(OTLK) -> Avastin 존재 -> 기존 성분."""
     names = (rec.get("openfda") or {}).get("generic_name", [])
     if not names:
         return None

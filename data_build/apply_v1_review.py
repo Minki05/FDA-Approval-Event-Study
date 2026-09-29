@@ -1,32 +1,41 @@
 """
-apply_v1_review.py — verify_events.py 결과 + 수동 확인을 events_verified.csv에 반영
+data_build/apply_v1_review.py
 
-  1) 자동: market_cap_group <- 계산된 t-1 시총 그룹 (events_enriched.csv)
-  2) 자동: novelty, center, mcap_t1_musd 열 추가
-  3) 수동 확인 결과 (아래 EDITS / EXCLUDE / CONFOUNDED, 근거 주석)
-  제외 이벤트는 events_excluded.csv로 이동 (삭제 아님, 기록 보존)
+Step 3: write the automatic tags and my manual decisions into events_verified.csv.
 
-USAGE:  python3 verify_events.py && python3 apply_v1_review.py
+What it does
+    1. Copies market cap group, novelty, review center and market cap from
+       events_enriched.csv (output of verify_events.py).
+    2. Applies my manual decisions, each with its reason written in the code:
+         EXCLUDE      events removed from the sample (e.g. market cap above $10B,
+                      primary listing outside the US). They are moved to
+                      events_excluded.csv, not deleted, so the decision stays visible.
+         EDITS        corrected fields after checking the press release by hand
+         CONFOUNDED   events with other price-moving news on the same days (earnings,
+                      offerings, financing). They stay in the sample but are dropped
+                      in the sensitivity analysis.
+
+Run (originally from the repo root)
+    python3 data_build/verify_events.py && python3 data_build/apply_v1_review.py
 """
+
 import shutil
 import pandas as pd
 
 V, E = "events_verified.csv", "events_enriched.csv"
 
 EXCLUDE = {
-    ("INSM", "APPROVAL"): "LARGE_CAP: t-1 시총 $23.9B > $10B 상한 (RVMD와 같은 기준)",
-    ("ZEAL", "CRL"): "FOREIGN_PRIMARY_LISTING: 본주 코펜하겐 (TLX/Shionogi와 같은 기준)",
+    ("INSM", "APPROVAL"): "LARGE_CAP: market cap at t-1 $23.9B > $10B cap (same rule as RVMD)",
+    ("ZEAL", "CRL"): "FOREIGN_PRIMARY_LISTING: primary listing in Copenhagen (same rule as TLX/Shionogi)",
 }
 
-# (ticker, decision_type): {col: value}
 EDITS = {
     ("RARE", "CRL"): dict(market_reaction_date="2025-07-14", announcement_time="after_hours",
                          market_reaction_note="PR Fri 7/11 (after close); Benzinga: shares -8% in Mon 7/14 premarket -> reaction 7/14. "
                                               "Note: separate 8-K 7/9 (Orbit/setrusumab interim miss) falls before window."),
-    ("DAWN", "APPROVAL"): dict(novelty="NME"),   # tovorafenib = CDER 2024 novel approval (현탁액 NDA가 잘못 매칭됐던 것)
+    ("DAWN", "APPROVAL"): dict(novelty="NME"),   # tovorafenib = CDER 2024 novel approval (auto-match had picked the later suspension NDA)
 }
 
-# 반응 구간(t-1~t+1)에 다른 주가 재료 -> 표본 유지, 민감도 분석에서 제외해 비교
 CONFOUNDED = {
     ("MDGL", "APPROVAL"): "offering: 424B5 filed 2024-03-18 (= t+1)",
     ("PHAT", "APPROVAL"): "financing: 8-K 1.01/2.03 revenue-interest financing 2022-05-04 (= reaction day)",
@@ -76,9 +85,9 @@ ex.to_csv("events_excluded.csv", index=False)
 v = v[~ex_mask.values]
 v.to_csv(V, index=False)
 
-print("시총 그룹 변경:", ", ".join(changed) or "없음")
-print("제외 ->", ", ".join(f"{a}({b[0]})" for a, b in EXCLUDE))
-print("수정:", ", ".join(f"{a}({b[0]})" for a, b in EDITS))
-print("오염 플래그:", ", ".join(f"{a}({b[0]})" for a, b in CONFOUNDED))
-print(v.decision_type.value_counts().to_dict(), "| 총", len(v), "행")
+print("Market cap group changed:", ", ".join(changed) or "none")
+print("Excluded ->", ", ".join(f"{a}({b[0]})" for a, b in EXCLUDE))
+print("Edited:", ", ".join(f"{a}({b[0]})" for a, b in EDITS))
+print("Contaminated:", ", ".join(f"{a}({b[0]})" for a, b in CONFOUNDED))
+print(v.decision_type.value_counts().to_dict(), "| total", len(v), "rows")
 print(pd.crosstab(v.decision_type, [v.center.fillna(""), v.novelty.fillna("")]))
