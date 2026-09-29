@@ -1,177 +1,171 @@
-# FDA Decision Event Study (Approvals + CRLs)
+# How Do Biotech Stocks React to FDA Decisions?
 
-## Project Overview
+An event study of small- and mid-cap US biotech stocks around FDA approvals and Complete Response Letters (CRLs), 2022–2026.
 
-This project analyzes stock price reactions around FDA decision announcements for publicly traded biotechnology companies. The goal is to measure whether FDA decisions are associated with abnormal returns relative to a biotechnology sector benchmark, and — as of v1.2 — whether the market reacts **asymmetrically** to good news (approvals) versus bad news (Complete Response Letters, "CRLs").
+**Main result.** On the two trading days around the announcement, and measured against the biotech sector (XBI):
 
-This version uses two manually verified samples:
+- stocks rose **+7.9%** on average after an approval (n = 52, p = 0.013)
+- stocks fell **−23.6%** on average after a CRL (n = 33, p = 0.0002)
 
-- **Approvals** — a pilot sample of FDA novel drug approvals (positive events).
-- **CRLs** — a contrast group of Complete Response Letters (negative events), where the FDA declines to approve a drug in its current form.
+The market punishes bad news about **3 times more** than it rewards good news. The result holds with SPY as the benchmark, with a market model, without events contaminated by other news, and under a different reaction-day definition.
 
-Because both samples are small, the project reports both mean and median for every window and explicitly checks how sensitive each average is to a single outlier.
+![Approval vs CRL](charts/approval_vs_crl.png)
+
+---
+
+## Question
+
+A small biotech often depends on a single drug, so an FDA decision can decide whether the company has a business. I wanted to measure:
+
+1. How large is the average reaction to an approval and to a rejection (CRL)?
+2. Is the reaction symmetric, or does bad news matter more?
+3. Does the price move before the news (leakage) or keep moving after it (drift / reversal)?
 
 ## Data
 
-The event dataset was constructed from FDA decision records and manually verified using company press releases, newswire announcements, and SEC 8-K filings.
+**Sample:** 93 hand-verified FDA decisions from January 2022 to September 2026. Price data is available for **85 of them: 52 approvals and 33 CRLs**.
 
-Each event includes:
+**Sample rules**
 
-- Ticker
-- Company name
-- Drug name (approvals)
-- FDA decision date
-- Announcement timing (pre-market / market-hours / after-hours)
-- Market reaction date
-- Market cap group
-- Source URL / verification notes
+- US-listed small- and mid-cap companies (market cap below $10B the day before the event)
+- one event per company per decision type (the first one), so the same company does not dominate the sample
+- all application types are included (new molecular entities, new formulations, biologics reviewed by CDER and gene/cell therapies reviewed by CBER), and each event is tagged so subsets can be tested separately
 
-The verified input file is `events_verified.csv` (approvals and CRLs combined). CRL candidates were first collected as `crl_candidates_raw.csv`, hand-verified, and cleaned into `events_crl_clean.csv` via `clean_crl.py` before being merged in.
+**Where the events come from**
 
-Events without available historical price data from yfinance were recorded separately in `skipped_events.csv`. This exclusion matters and is discussed under Limitations.
+| Source | Used for |
+|---|---|
+| openFDA drugsfda | approval candidates (NDA + BLA, original approvals) |
+| openFDA CRL database | CRLs from 2024 onward |
+| SEC EDGAR full-text search of 8-K filings | CRLs from 2022–2023 |
 
-### CRL verification notes
+The FDA's CRL database is biased before 2024: it mostly contains drugs that were **later approved**. Using it for 2022–23 would be look-ahead bias, because I would only see CRLs with a good ending. So for those years I searched what companies themselves disclosed in 8-Ks at the time.
 
-CRL announcement dates are harder to pin down than approvals: the FDA does not publicly release CRLs, so the market-moving event is the company's own disclosure (usually an 8-K or press release), which can lag the letter by days. Each CRL's disclosure timestamp was verified by hand, and after-hours / weekend disclosures were rolled forward to the next trading day. Two verification patterns are worth noting:
+**Verification**
 
-- **Duplicate CRLs.** Some companies received more than one CRL for the same drug (e.g., Outlook, Zealand). Only the **first** CRL per company was kept, since repeat CRLs are less of a surprise to the market and their event windows can overlap.
-- **Priced-in decisions.** At least one CRL (LXRX) followed a negative advisory-committee vote months earlier, so the market had largely priced in the outcome before the letter. This shows up in the data as a muted or even positive reaction and is discussed under Interpretation.
+- **Reaction day.** The FDA decision date is often not the day the market reacted. I read the press release time for each event. Anything announced after 4:00 pm ET was assigned to the next trading day.
+- **Automatic cross-check.** `data_build/verify_events.py` checks every event against SEC filing timestamps, recomputes market cap at t−1, tags novelty and review center from openFDA, and flags other price-moving filings on the same days. This caught several reaction dates I had entered incorrectly.
+- **Contamination.** 11 events had other news in the window, such as earnings, stock offerings or financing deals. They stay in the sample and are dropped in a sensitivity test.
+- **Exclusions.** Excluded events are kept with their reason in `data/events_excluded.csv`, for example a company above the market-cap cap or one whose primary listing is outside the US.
 
-## Methodology
+## Method
 
-Historical price data was collected using yfinance. Each stock was compared against two benchmarks:
+**Abnormal return** = stock return − XBI return over the same days (SPY as a robustness check).
 
-- SPY: broad market benchmark
-- XBI: biotechnology sector benchmark
+**Windows**, in trading days around the reaction day *t*, all close-to-close:
 
-The main abnormal return measure uses XBI as the benchmark:
+| Window | Days | What it answers |
+|---|---|---|
+| Pre | t−30 → t−1 | Did the price move before the news? |
+| **Announcement** | **t−1 → t+1** | **The reaction (main result)** |
+| Post | t+1 → t+30 | Does the move continue or reverse? |
 
-```
-Abnormal Return = Stock Return - XBI Return
-```
+The announcement window is two days long, so it still catches the reaction if the reaction day is off by one.
 
-Note: this benchmark-subtraction measure implicitly assumes a beta of 1 against XBI. A beta-adjusted market model is planned for a future version (see Next Steps).
-
-### Event Window Definition
-
-The analysis uses trading-day windows around the market reaction date. The market reaction date may differ from the FDA decision date if the announcement occurred after market close; for after-hours announcements, the next trading day is used as the market reaction date.
-
-The event windows are:
-
-- Pre-event window: [-30, -1]
-- Announcement window: [0, +1]
-- Post-event window: [+2, +30]
+**Tests.** Event returns are small-sample and heavy-tailed, so every result is reported with three things: a t-test, a Wilcoxon signed-rank test and a bootstrap 95% confidence interval. The approval vs CRL comparison uses Welch's t-test and Mann-Whitney U.
 
 ## Results
 
-The verified sample contained 10 approvals and 17 CRLs. Historical price data was available for **8 approvals and 15 CRLs** (23 of 27 events); the rest were excluded for missing yfinance data.
+### Main result
 
-### Headline: approval vs CRL asymmetry (announcement window)
+| | n | Mean | Median | t-test p | Wilcoxon p | 95% CI (bootstrap) |
+|---|---|---|---|---|---|---|
+| Approval | 52 | **+7.94%** | +1.53% | 0.013 | 0.040 | [+2.1, +14.0] |
+| CRL | 33 | **−23.60%** | −14.12% | 0.0002 | 0.0002 | [−34.6, −12.9] |
 
-| Decision | Mean    | Median  | n |
-| -------- | ------- | ------- | --- |
-| Approval | +9.12%  | +6.95%  | 8 |
-| CRL      | -35.17% | -40.01% | 15 |
+Difference: 31.5 percentage points (Welch p < 0.001, Mann-Whitney p < 0.001). The CRL reaction is 3.0x the size of the approval reaction.
 
-The market's reaction to a CRL is far larger in magnitude than its reaction to an approval. In this sample the average bad-news move (-35%) is roughly four times the size of the average good-news move (+9%). This is the central finding of v1.2. See `charts/approval_vs_crl_asymmetry.png`.
+The approval median (+1.5%) is much lower than the mean. Most approvals are largely expected and move the stock little, while a few surprises move it a lot.
 
-### Abnormal returns by window — approvals (n=8)
+### Robustness
 
-| Window               | Mean   | Median  | Mean (drop top outlier) | Dominant outlier |
-| -------------------- | ------ | ------- | ----------------------- | ---------------- |
-| Pre-event [-30, -1]  | +6.32% | +4.39%  | +1.88%                  | XFOR (+37.4%)    |
-| Announcement [0, +1] | +9.12% | +6.95%  | +6.08%                  | GERN (+30.5%)    |
-| Post-event [+2, +30] | -7.30% | -13.34% | -5.34%                  | MDGL (-21.0%)    |
+| Check | Approval | CRL |
+|---|---|---|
+| Main (vs XBI) | +7.9% (p = 0.013) | −23.6% (p = 0.0002) |
+| vs SPY instead of XBI | +7.9% (p = 0.015) | −23.5% (p = 0.0003) |
+| Market model (OLS beta), BMP test | +7.4% (p = 0.006) | −24.5% (p = 0.0007) |
+| Without contaminated events | +8.7% (p = 0.019) | −25.1% (p = 0.0002) |
+| Drop largest and smallest event | +7.3% (p = 0.011) | −23.7% (p = 0.0001) |
+| Novel drugs only (NME / new biologics) | +5.7% (p = 0.054) | −24.7% (p = 0.001) |
+| All approvals with reaction day = FDA date | +6.6% (p = 0.030) | – |
 
-### Abnormal returns by window — CRLs (n=15)
+- **Market model** (`3_market_model.py`). Subtracting XBI assumes beta = 1. I estimated each stock's alpha and beta by OLS on days t−250 to t−31, then standardized each event's abnormal return by its prediction-error variance, which includes the estimation error in alpha and beta. I use the BMP test (Boehmer, Musumeci & Poulsen, 1991) because volatility on FDA days is far higher than normal. The median beta turned out to be about 1.0, and the ranking of events is almost identical to the simple method (Spearman ρ = 0.996).
+- **Reaction-day definition** (`4_anchor_check.py`). Recomputing every approval with a single mechanical rule (reaction day = FDA date) gives a similar result (ρ = 0.97 between the two versions, and no systematic difference, Wilcoxon p = 0.21).
+- The one weak spot is **novel-drug approvals only**, which are borderline (p ≈ 0.05). The CRL result is strong in every version.
 
-| Window               | Mean    | Median  |
-| -------------------- | ------- | ------- |
-| Pre-event [-30, -1]  | -3.66%  | -5.17%  |
-| Announcement [0, +1] | -35.17% | -40.01% |
-| Post-event [+2, +30] | +9.62%  | +7.01%  |
+![Mean reaction by window](charts/windows_by_decision.png)
 
-For CRLs, the reaction is heavily concentrated in the announcement window. The small negative pre-event mean (-3.66%) suggests only mild anticipation, and the positive post-event figures (+9.62% mean, +7.01% median) indicate a partial bounce-back after the initial drop, consistent with an oversold reaction being partly retraced.
+### Before and after the announcement
 
-### CRL reaction by market cap (announcement window)
+- **Pre window.** There is no significant movement before CRLs (−1.9%, p = 0.82). Before approvals there is a small run-up (+6.0%, p = 0.07), which is consistent with some anticipation but not conclusive.
+- **Post window.** On average there is no significant drift after either type. But among CRLs, **the bigger the drop, the bigger the rebound** over the next 30 days (Spearman ρ = −0.52, p = 0.002). This suggests the market overreacts to the worst CRLs.
+- **Other splits (not significant).** Approval reactions were larger in 2022–23 (+13.0%) than in 2024–26 (+4.0%), but the difference is not significant (p = 0.15). CBER CRLs (gene and cell therapies) fell more (−34.9%, n = 7) than CDER CRLs (−20.6%), also not significant. Small-cap CRLs fell more than mid-cap CRLs (−27.0% vs −13.1%, p = 0.26).
 
-| Group     | Mean    | Median  | n |
-| --------- | ------- | ------- | --- |
-| Small-cap | -49.51% | -57.20% | 9 |
-| Mid-cap   | -13.67% | -4.74%  | 6 |
+## Backtest: buying after large CRL drops
 
-Small-cap biotechs are punished far more severely by a CRL than mid-caps — the small-cap median announcement reaction is roughly -57%. This is consistent with small single-asset companies being more existentially exposed to a single FDA decision.
+![CRL overreaction](charts/crl_overreaction.png)
 
-## Charts
+**Rule.** If the XBI-adjusted return from t−1 to t+1 is −30% or worse, buy at the t+1 close and sell at the t+30 close, shorting the same amount of XBI. Round-trip cost is 1%. The rule only uses information known at the time of the trade.
 
-- `charts/approval_vs_crl_asymmetry.png` — box + individual points, approval vs CRL announcement returns (the v1.2 headline)
-- `charts/announcement_abnormal_return_by_ticker.png` — per-event announcement reaction, all events
-- `charts/mean_median_by_window.png` — mean vs median per window, with the dominant outlier annotated
-- `charts/outlier_sensitivity_by_window.png` — window mean with and without the single largest outlier
-- `charts/market_cap_group_announcement_return.png` — small-cap vs mid-cap, mean and median
+**In-sample (n = 14).** Mean +16.4% per trade, median +11.7%, 11 of 14 trades profitable (t-test p = 0.021, Wilcoxon p = 0.013). The result barely changes with costs of 0.5–2% or thresholds of −20% / −40%. CRLs that fell less than 30% kept falling (mean −6.4%, n = 19).
 
-Note: `mean_median_by_window.png`, `outlier_sensitivity_by_window.png`, and `market_cap_group_announcement_return.png` currently **pool approvals and CRLs**, so their pooled means (e.g., an announcement average around -20%) mix a positive and a negative event type and should be read as full-sample diagnostics of *where* the reaction concentrates, not as an interpretable effect size. The approval-only and CRL-only tables above are the correct basis for magnitude. Splitting these charts by decision type is a v1.3 item.
+**Does it survive the obvious objections?**
 
-## Interpretation
+- **Out-of-sample.** I chose the threshold on 2022–24 only (it picked −20%) and applied it unchanged to 2025–26: +15.8% per trade. That is the same direction, but with only 8 trades it is not significant (p = 0.18).
+- **Survivorship.** Seven CRL companies have no price data because they were later acquired or delisted. If all of them had been −100% trades, the mean turns to −22.7%. At −50% it is −6.1%. This bound is extreme: these stocks did trade during the 30 days, and not all of them would have hit the signal. Still, it shows the result depends on the missing firms.
+- **Placebo.** Non-CRL crashes of −30% or more in the same stocks rebounded +4.7% (n = 52, not significant). The CRL rebound is larger, but the difference is not significant (Mann-Whitney p = 0.11).
+- **No hedge.** The mean is +14.5% but the worst trade is −43.5% (p = 0.095). The XBI hedge mainly reduces risk.
 
-Read with the small samples in mind:
-
-1. **Asymmetry is the main result.** Approvals produce a positive announcement reaction (mean +9.12%, robust under the median and after dropping the largest name); CRLs produce a much larger negative one (mean -35.17%, median -40.01%). The market reacts more violently to bad news than to good news in this sample.
-
-2. **Approval pre-event window — no clear anticipation.** The positive pre-event mean (+6.32%) is driven almost entirely by a single stock, XFOR (+37.4%). Inspecting XFOR's daily prices shows this run-up came from a large single-day move about six weeks before the approval, unrelated to the FDA decision, not a gradual pre-approval drift. With XFOR removed, the pre-event mean falls to +1.88%. This window is better described as showing no systematic pre-announcement signal than as "market anticipation."
-
-3. **Approval post-event window — reversal.** Post-approval abnormal returns are negative (mean -7.30%, median -13.34%), consistent with a profit-taking / "sell the news" pattern following the approval pop.
-
-4. **CRL reaction concentrates at announcement, then partly retraces.** CRLs show only mild pre-event drift (-3.66%), a large announcement drop (-35.17%), and a positive post-event window (+9.62%). The partial bounce is consistent with an initial overreaction to bad news being partly corrected over the following month.
-
-5. **Not every CRL is a surprise.** LXRX reacted positively to its CRL because a negative advisory-committee vote months earlier had already priced in the bad outcome. This is a useful reminder that event studies measure reactions to *new information*, and a CRL is only "news" if the market had not already expected it.
+**Conclusion.** The rebound after large CRL drops is large in this sample. Given the small number of trades, the out-of-sample test, survivorship and the placebo comparison, I do **not** claim it is a tradable or CRL-specific anomaly.
 
 ## Limitations
 
-This is a pilot analysis with several limitations:
+- **Small samples.** 52 and 33 events, and the backtest has 14 trades. Many subgroups are tested, so a single p < 0.05 in a subgroup should not be over-read.
+- **Survivorship bias.** Companies that were acquired or delisted have no price history in yfinance: 7 events in the sample and 6 further CRLs, all listed in `data/survivorship.csv`. Delisting is more likely after the worst outcomes, so the CRL reaction may be understated.
+- **Human judgment.** Reaction days, novelty tags for never-approved drugs, and contamination flags were decided by hand from press releases and filings. The reasons are recorded in the data and in `data_build/`.
+- **Mixed reaction-day rules.** About 30 approvals were added with a mechanical rule (reaction day = FDA date). `4_anchor_check.py` shows this does not change the result.
+- **Not a new finding.** Earlier event studies have documented large reactions to FDA news. The contribution here is the recent 2022–26 sample, the look-ahead-free CRL collection from 8-K filings, the automated verification, and the robustness checks.
 
-- **Small samples** (8 approvals, 15 CRLs), so individual events strongly influence the averages.
-- **Survivorship bias in the CRL sample.** Two verified CRL events (ZEAL, APLT) were dropped because their tickers no longer return price data on yfinance — and delisting is correlated with the *worst* CRL outcomes. APLT in particular was an ~-80% event. Because the most catastrophic CRL reactions are the ones most likely to be missing, the reported CRL drop (-35%) is likely an **underestimate** of the true average. The excluded events are listed in `skipped_events.csv`.
-- Abnormal return uses simple benchmark subtraction (implicit beta = 1), not a beta-adjusted market model.
-- Events without yfinance price data were excluded.
-- Statistical significance is not yet tested; the samples are still small, and the asymmetry result should be treated as descriptive until a test is added.
-- Market cap groups are simplified.
-- Pooled charts mix decision types (see Charts note).
+## Next steps
 
-## Next Steps
+- Recover prices for the acquired and delisted companies from another data source, to remove the survivorship problem.
+- Extend the sample back to 2015–2021 for a real out-of-sample test.
+- Look at other catalysts with larger samples, such as Phase 3 readouts and advisory committee votes.
 
-- Add statistical significance testing (bootstrap / permutation) for the approval-vs-CRL asymmetry.
-- Expand the approval sample (n=8 toward ~20) to balance the two groups and improve power.
-- Recover skipped events where event-window prices exist despite later delisting, to reduce survivorship bias.
-- Beta-adjusted abnormal returns via a market model estimated on a pre-event window.
-- Split the window and market-cap charts by decision type.
-- A simple event-driven trading strategy backtest.
+## Repository structure
 
-## Changelog
+```
+1_event_returns.py          abnormal returns for every event (pre / announcement / post)
+2_significance_tests.py     t-test, Wilcoxon, bootstrap CI, subgroups
+3_market_model.py           OLS market model, Patell and BMP tests
+4_anchor_check.py           robustness to the reaction-day definition
+5_backtest_crl_rebound.py   CRL rebound backtest with out-of-sample, survivorship and placebo checks
+6_make_charts.py            charts/
+data/                       events_verified.csv (final sample), events_excluded.csv, survivorship.csv
+results/                    all outputs (regenerated by the scripts)
+charts/                     figures used in this README
+data_build/                 how the dataset was collected and verified (record, not needed to reproduce results)
+```
 
-Newest entries on top.
+Each script starts with a header explaining the question, the reasoning and the result.
 
-### v1.2
+## How to run
 
-- Added a **CRL contrast group** (15 events with price data) alongside the approval sample.
-- New headline result: **approval vs CRL announcement asymmetry** (+9.12% vs -35.17%).
-- Added CRL-only window table and CRL-only market-cap breakdown (small-cap -49.51% vs mid-cap -13.67%).
-- New chart `approval_vs_crl_asymmetry.png`.
-- CRL data pipeline: `crl_candidates_raw.csv` -> hand verification -> `clean_crl.py` -> `events_crl_clean.csv` -> merged into `events_verified.csv`.
-- Documented **survivorship bias** in the CRL sample (ZEAL, APLT dropped; reported CRL drop is a likely underestimate).
-- Kept one CRL per company (first CRL only) to preserve independence and avoid overlapping windows.
+```bash
+pip install -r requirements.txt
+python3 1_event_returns.py
+python3 2_significance_tests.py
+python3 3_market_model.py
+python3 4_anchor_check.py
+python3 5_backtest_crl_rebound.py
+python3 6_make_charts.py
+```
 
-### v1.1
+Prices come from yfinance, so the first run takes a few minutes, and numbers can shift slightly if Yahoo revises historical data.
 
-- Reporting layer only — no change to how returns are computed.
-- Added median alongside mean for every event window.
-- Added per-window outlier flagging and a "drop top outlier" mean to expose small-sample sensitivity.
-- New chart `outlier_sensitivity_by_window.png`; window chart replaced by `mean_median_by_window.png`.
-- Corrected the pre-event interpretation: the positive pre-event mean is an XFOR-driven artifact, not market anticipation.
+<details>
+<summary>All events, sorted by reaction</summary>
 
-### v1.0
+![Reaction by event](charts/reaction_by_event.png)
 
-- Initial event study on a manually verified pilot sample of approvals.
-- XBI-adjusted abnormal returns over pre / announcement / post trading-day windows.
-- Trading-day anchoring with after-hours announcements mapped to the next trading day.
-- Mean abnormal return by window and by market cap group; three summary charts.
+</details>
